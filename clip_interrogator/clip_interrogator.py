@@ -6,7 +6,7 @@ import open_clip
 import os
 import pickle
 import time
-import torchalt_flavors_path
+import torch
 
 from dataclasses import dataclass
 from models.blip import blip_decoder, BLIP_Decoder
