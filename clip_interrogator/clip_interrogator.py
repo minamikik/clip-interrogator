@@ -112,6 +112,8 @@ class Interrogator():
                     print(f'Loaded {len(alt_flavors)} alternative flavors from {config.alt_flavors_path}')
                 except Exception as e:
                     print(f"Failed to load alternative flavor list from {config.alt_flavors_path}: {e}")
+            else:
+                print(f"Alternative flavor list not found at {config.alt_flavors_path}")
 
         self.artists = LabelTable(artists, "artists", self.clip_model, self.tokenize, config)
         self.flavors = LabelTable(flavors, "flavors", self.clip_model, self.tokenize, config)
