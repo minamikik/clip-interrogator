@@ -41,6 +41,7 @@ class Config:
     data_path: str = os.path.join(os.path.dirname(__file__), 'data')
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     flavor_intermediate_count: int = 2048
+    alt_flavor_path: str = None
     quiet: bool = False # when quiet progress bars are not shown
 
 
@@ -102,8 +103,17 @@ class Interrogator():
         artists = [f"by {a}" for a in raw_artists]
         artists.extend([f"inspired by {a}" for a in raw_artists])
 
+        flavors = _load_list(config.data_path, 'flavors.txt')
+        if config.alt_flavor_path is not None:
+            if os.path.exists(config.alt_flavor_path):
+                try:
+                    alt_flavors = _load_list(config.alt_flavor_path)
+                    flavors.extend(alt_flavors)
+                except Exception as e:
+                    print(f"Failed to load alternative flavor list from {config.alt_flavor_path}: {e}")
+
         self.artists = LabelTable(artists, "artists", self.clip_model, self.tokenize, config)
-        self.flavors = LabelTable(_load_list(config.data_path, 'flavors.txt'), "flavors", self.clip_model, self.tokenize, config)
+        self.flavors = LabelTable(flavors, "flavors", self.clip_model, self.tokenize, config)
         self.mediums = LabelTable(_load_list(config.data_path, 'mediums.txt'), "mediums", self.clip_model, self.tokenize, config)
         self.movements = LabelTable(_load_list(config.data_path, 'movements.txt'), "movements", self.clip_model, self.tokenize, config)
         self.trendings = LabelTable(trending_list, "trendings", self.clip_model, self.tokenize, config)
