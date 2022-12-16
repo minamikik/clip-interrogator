@@ -107,7 +107,8 @@ class Interrogator():
         if config.alt_flavors_path is not None:
             if os.path.exists(config.alt_flavors_path):
                 try:
-                    alt_flavors = _load_list(config.alt_flavors_path)
+                    
+                    alt_flavors = _load_list(os.path.dirname(config.alt_flavors_path), os.path.basename(config.alt_flavors_path))
                     flavors.extend(alt_flavors)
                     print(f'Loaded {len(alt_flavors)} alternative flavors from {config.alt_flavors_path}')
                 except Exception as e:
