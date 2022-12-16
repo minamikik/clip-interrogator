@@ -41,6 +41,7 @@ class Config:
     data_path: str = os.path.join(os.path.dirname(__file__), 'data')
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     flavor_intermediate_count: int = 2048
+    is_artists: bool = True
     alt_flavors_path: str = None
     quiet: bool = False # when quiet progress bars are not shown
 
@@ -99,7 +100,9 @@ class Interrogator():
         trending_list.extend(["featured on "+site for site in sites])
         trending_list.extend([site+" contest winner" for site in sites])
 
-        raw_artists = _load_list(config.data_path, 'artists.txt')
+        raw_artists = []
+        if config.is_artists:
+            raw_artists = _load_list(config.data_path, 'artists.txt')
         artists = [f"by {a}" for a in raw_artists]
         artists.extend([f"inspired by {a}" for a in raw_artists])
 
