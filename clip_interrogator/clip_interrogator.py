@@ -6,7 +6,7 @@ import open_clip
 import os
 import pickle
 import time
-import torch
+import torchalt_flavors_path
 
 from dataclasses import dataclass
 from models.blip import blip_decoder, BLIP_Decoder
@@ -41,7 +41,7 @@ class Config:
     data_path: str = os.path.join(os.path.dirname(__file__), 'data')
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     flavor_intermediate_count: int = 2048
-    alt_flavor_path: str = None
+    alt_flavors_path: str = None
     quiet: bool = False # when quiet progress bars are not shown
 
 
@@ -104,13 +104,14 @@ class Interrogator():
         artists.extend([f"inspired by {a}" for a in raw_artists])
 
         flavors = _load_list(config.data_path, 'flavors.txt')
-        if config.alt_flavor_path is not None:
-            if os.path.exists(config.alt_flavor_path):
+        if config.alt_flavors_path is not None:
+            if os.path.exists(config.alt_flavors_path):
                 try:
-                    alt_flavors = _load_list(config.alt_flavor_path)
+                    alt_flavors = _load_list(config.alt_flavors_path)
                     flavors.extend(alt_flavors)
+                    print(f'Loaded {len(alt_flavors)} alternative flavors from {config.alt_flavors_path}')
                 except Exception as e:
-                    print(f"Failed to load alternative flavor list from {config.alt_flavor_path}: {e}")
+                    print(f"Failed to load alternative flavor list from {config.alt_flavors_path}: {e}")
 
         self.artists = LabelTable(artists, "artists", self.clip_model, self.tokenize, config)
         self.flavors = LabelTable(flavors, "flavors", self.clip_model, self.tokenize, config)
