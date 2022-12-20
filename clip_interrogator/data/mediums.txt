@@ -1,4 +1,5 @@
 a 3D render
+a advertising photo
 a black and white photo
 a bronze sculpture
 a cartoon
@@ -8,6 +9,7 @@ a charcoal drawing
 a child's drawing
 a color pencil sketch
 a colorized photo
+a commercial photo
 a comic book panel
 a computer rendering
 a cross stitch
@@ -19,9 +21,11 @@ a diagram
 a digital painting
 a digital rendering
 a drawing
+a fashion photo
 a fine art painting
 a flemish Baroque
 a gouache
+a gravure photo
 a hologram
 a hyperrealistic painting
 a jigsaw puzzle
@@ -45,6 +49,7 @@ a pointillism painting
 a polaroid photo
 a pop art painting
 a portrait
+a porn photo
 a poster
 a raytraced image
 a renaissance painting
