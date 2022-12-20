@@ -42,7 +42,6 @@ class Config:
     data_path: str = os.path.join(os.path.dirname(__file__), 'data')
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     flavor_intermediate_count: int = 2048
-    alt_flavors_path: str = None
     quiet: bool = False # when quiet progress bars are not shown
 
 
@@ -122,20 +121,11 @@ class Interrogator():
         artists.extend([f"inspired by {a}" for a in raw_artists])
 
         flavors = _load_list(config.data_path, 'flavors.txt')
-        if config.alt_flavors_path is not None:
-            if os.path.exists(config.alt_flavors_path):
-                try:
-                    
-                    alt_flavors = _load_list(os.path.dirname(config.alt_flavors_path), os.path.basename(config.alt_flavors_path))
-                    flavors.extend(alt_flavors)
-                    print(f'Loaded {len(alt_flavors)} alternative flavors from {config.alt_flavors_path}')
-                except Exception as e:
-                    print(f"Failed to load alternative flavor list from {config.alt_flavors_path}: {e}")
-            else:
-                print(f"Alternative flavor list not found at {config.alt_flavors_path}")
+        flavors_reduced = _load_list(config.data_path, 'flavors_reduced.txt')
 
         self.artists = LabelTable(artists, "artists", self.clip_model, self.tokenize, config)
         self.flavors = LabelTable(flavors, "flavors", self.clip_model, self.tokenize, config)
+        self.flavors_reduced = LabelTable(flavors_reduced, "flavors_reduced", self.clip_model, self.tokenize, config)
         self.mediums = LabelTable(_load_list(config.data_path, 'mediums.txt'), "mediums", self.clip_model, self.tokenize, config)
         self.movements = LabelTable(_load_list(config.data_path, 'movements.txt'), "movements", self.clip_model, self.tokenize, config)
         self.trendings = LabelTable(trending_list, "trendings", self.clip_model, self.tokenize, config)
@@ -167,18 +157,35 @@ class Interrogator():
         return caption[0]
 
     def image_to_features(self, image: Image) -> torch.Tensor:
-        images = self.clip_preprocess(image).unsqueeze(0).to(self.device)
-        with torch.no_grad(), torch.cuda.amp.autocast():
-            image_features = self.clip_model.encode_image(images)
-            image_features /= image_features.norm(dim=-1, keepdim=True)
-        return image_features
+        try:
+            images = self.clip_preprocess(image).unsqueeze(0).to(self.device)
+            with torch.no_grad(), torch.cuda.amp.autocast():
+                image_features = self.clip_model.encode_image(images)
+                image_features /= image_features.norm(dim=-1, keepdim=True)
+            return image_features
+        except Exception as e:
+            print(f"Error: {e}")
+            raise e
 
-    def interrogate_one(self, image: Image, seed_path) -> str:
-        image_features = self.image_to_features(image)
-        seed = _load_list(os.path.dirname(seed_path), os.path.basename(seed_path))
-        labels = LabelTable(seed, os.path.basename(seed_path), self.clip_model, self.tokenize, self.config)
-        top = labels.rank(image_features, 1)[0]
-        return top
+    def interrogate_one(self, image: Image, seed_path: str) -> str:
+        try:
+            image_features = self.image_to_features(image)
+            seed = _load_list(os.path.dirname(seed_path), os.path.basename(seed_path))
+            seed_labels = LabelTable(seed, os.path.basename(seed_path), self.clip_model, self.tokenize, self.config)
+            top = seed_labels.rank(image_features, 1)[0]
+            return _truncate_to_fit(top, self.tokenize)
+        except Exception as e:
+            print(f"Error: {e}")
+            raise e
+
+    def interrogate_flavors(self, image: Image, max_flavors: int = 32) -> str:
+        try:
+            image_features = self.image_to_features(image)
+            tops = self.flavors_reduced.rank(image_features, max_flavors)
+            return _truncate_to_fit(", ".join(tops), self.tokenize)
+        except Exception as e:
+            print(f"Error: {e}")
+            raise e
 
     def interrogate_classic(self, image: Image, max_flavors: int=3) -> str:
         caption = self.generate_caption(image)
@@ -203,6 +210,7 @@ class Interrogator():
         merged = _merge_tables([self.artists, self.flavors, self.mediums, self.movements, self.trendings], self.config)
         tops = merged.rank(image_features, max_flavors)
         return _truncate_to_fit(caption + ", " + ", ".join(tops), self.tokenize)
+
 
     def interrogate(self, image: Image, max_flavors: int=32) -> str:
         caption = self.generate_caption(image)
@@ -293,8 +301,11 @@ class LabelTable():
                     try:
                         data = pickle.load(f)
                         if data.get('hash') == hash:
+                            print(f"Loaded cached table {desc}")
                             self.labels = data['labels']
                             self.embeds = data['embeds']
+                        else:
+                            print(f"Hash mismatch for cached table {desc}")
                     except Exception as e:
                         print(f"Error loading cached table {desc}: {e}")
 
