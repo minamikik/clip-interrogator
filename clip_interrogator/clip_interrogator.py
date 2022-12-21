@@ -121,11 +121,9 @@ class Interrogator():
         artists.extend([f"inspired by {a}" for a in raw_artists])
 
         flavors = _load_list(config.data_path, 'flavors.txt')
-        flavors_reduced = _load_list(config.data_path, 'flavors_reduced.txt')
 
         self.artists = LabelTable(artists, "artists", self.clip_model, self.tokenize, config)
         self.flavors = LabelTable(flavors, "flavors", self.clip_model, self.tokenize, config)
-        self.flavors_reduced = LabelTable(flavors_reduced, "flavors_reduced", self.clip_model, self.tokenize, config)
         self.mediums = LabelTable(_load_list(config.data_path, 'mediums.txt'), "mediums", self.clip_model, self.tokenize, config)
         self.movements = LabelTable(_load_list(config.data_path, 'movements.txt'), "movements", self.clip_model, self.tokenize, config)
         self.trendings = LabelTable(trending_list, "trendings", self.clip_model, self.tokenize, config)
@@ -166,23 +164,39 @@ class Interrogator():
         except Exception as e:
             print(f"Error: {e}")
             raise e
-
-    def interrogate_one(self, image: Image, seed_path: str) -> str:
+    def interragate_score(self, image: Image, text: str) -> str:
         try:
             image_features = self.image_to_features(image)
-            seed = _load_list(os.path.dirname(seed_path), os.path.basename(seed_path))
-            seed_labels = LabelTable(seed, os.path.basename(seed_path), self.clip_model, self.tokenize, self.config)
+            sim = self.similarity(image_features, text)            
+            return sim
+
+        except Exception as e:
+            print(f"Error: {e}")
+            raise e
+
+    def interrogate_one(self, image: Image, path: str = None, list: list = None) -> str:
+        try:
+            image_features = self.image_to_features(image)
+            if path:
+                seed = _load_list(os.path.dirname(path), os.path.basename(path))
+                seed_labels = LabelTable(seed, os.path.basename(path), self.clip_model, self.tokenize, self.config)
+            elif list:
+                seed_labels = LabelTable(list, "list", self.clip_model, self.tokenize, self.config)
+            else:
+                raise Exception("No seed or list provided.")
             top = seed_labels.rank(image_features, 1)[0]
             return _truncate_to_fit(top, self.tokenize)
         except Exception as e:
             print(f"Error: {e}")
             raise e
 
-    def interrogate_flavors(self, image: Image, max_flavors: int = 32) -> str:
+    def interrogate_flavors(self, image: Image, path: str = None, max_flavors: int = 32) -> str:
         try:
             image_features = self.image_to_features(image)
+            flavors_reduced = _load_list(os.path.dirname(path), os.path.basename(path))
+            self.flavors_reduced = LabelTable(flavors_reduced, "flavors_reduced", self.clip_model, self.tokenize, self.config)
             tops = self.flavors_reduced.rank(image_features, max_flavors)
-            return _truncate_to_fit(", ".join(tops), self.tokenize)
+            return ", ".join(tops)
         except Exception as e:
             print(f"Error: {e}")
             raise e
