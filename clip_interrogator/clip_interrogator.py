@@ -45,7 +45,7 @@ class Config:
     quiet: bool = False # when quiet progress bars are not shown
 
 
-class Interrogator():
+class ClipInterrogator():
     def __init__(self, config: Config):
         self.config = config
         self.device = config.device
