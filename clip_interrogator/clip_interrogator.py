@@ -11,12 +11,13 @@ import requests
 
 
 from dataclasses import dataclass
-from blip import blip_decoder, BLIP_Decoder
 from PIL import Image
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
 from tqdm import tqdm
 from typing import List
+from .blip import blip_decoder, BLIP_Decoder
+
 
 @dataclass 
 class Config:
