@@ -5,11 +5,11 @@ from setuptools import setup, find_packages
 
 setup(
     name="clip-interrogator",
-    version="0.3.2",
+    version="0.3.3",
     license='MIT',
-    author='pharmapsychotic',
-    author_email='me@pharmapsychotic.com',
-    url='https://github.com/pharmapsychotic/clip-interrogator',
+    author='minamik',
+    author_email='mia@sync.dev',
+    url='git+https://github.com/minamikik/clip-interrogator.git',
     description="Generate a prompt from an image",
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",

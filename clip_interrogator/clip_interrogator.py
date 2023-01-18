@@ -9,7 +9,7 @@ import time
 import torch
 
 from dataclasses import dataclass
-from models.blip import blip_decoder, BLIP_Decoder
+from blip import blip_decoder, BLIP_Decoder
 from PIL import Image
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
@@ -46,7 +46,7 @@ class Config:
     quiet: bool = False # when quiet progress bars are not shown
 
 
-class Interrogator():
+class ClipInterrogator():
     def __init__(self, config: Config):
         self.config = config
         self.device = config.device

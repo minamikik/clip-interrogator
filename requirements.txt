@@ -4,3 +4,5 @@ Pillow
 requests
 tqdm
 open_clip_torch
+
+git+https://github.com/minamikik/BLIP.git
