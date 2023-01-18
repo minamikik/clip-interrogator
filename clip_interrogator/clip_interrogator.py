@@ -1,5 +1,4 @@
 import hashlib
-import inspect
 import math
 import numpy as np
 import open_clip
@@ -8,6 +7,8 @@ import pickle
 import time
 import torch
 import hashlib
+import requests
+
 
 from dataclasses import dataclass
 from blip import blip_decoder, BLIP_Decoder
@@ -17,9 +18,9 @@ from torchvision.transforms.functional import InterpolationMode
 from tqdm import tqdm
 from typing import List
 
-
 @dataclass 
 class Config:
+    print('ClipInterrogator: Initializing Config...')
     # models can optionally be passed in directly
     blip_model: BLIP_Decoder = None
     clip_model = None
@@ -47,33 +48,37 @@ class Config:
 
 class ClipInterrogator():
     def __init__(self, config: Config):
+        print('ClipInterrogator: Initializing ClipInterrogator...')
         self.config = config
         self.device = config.device
 
         if config.blip_model is None:
             if not config.quiet:
-                print("Loading BLIP model...")
-            cache_model_path = os.path.join(config.cache_path, 'model_large_caption.pth')
-            if os.path.exists(cache_model_path):
-                model_path = cache_model_path
-                with open(cache_model_path, 'rb') as f:
+                print("ClipInterrogator: Loading BLIP model...")
+            self.cache_model_path = os.path.join(config.cache_path, 'model_large_caption.pth')
+            if os.path.exists(self.cache_model_path):
+                model_path = self.cache_model_path
+                with open(self.cache_model_path, 'rb') as f:
                     model_hash = hashlib.md5(f.read()).hexdigest()
-                    print(f'Cached BLIP model hash: {model_hash}')
+                    print(f'ClipInterrogator: Cached BLIP model hash: {model_hash}')
                     if not model_hash == 'b78e0b7488c83ba75d58f93f79e885b6':
-                        print(f'Cached BLIP model is out of date, downloading new model from {config.blip_model_url}...')
-                        model_path = config.blip_model_url
+                        print(f'ClipInterrogator: Cached BLIP model is out of date, downloading new model from {config.blip_model_url}...')
+                        self.download_blip_model()
+                        model_path = self.cache_model_path
                     else:
-                        print(f'Using cached BLIP model from {cache_model_path}')
+                        print(f'ClipInterrogator: Using cached BLIP model from {self.cache_model_path}')
             else:
-                print(f'No cached BLIP model found, downloading new model from {config.blip_model_url}...')
-                model_path = config.blip_model_url
-            print(f'Loading BLIP model from {model_path}')
+                print(f'ClipInterrogator: No cached BLIP model found, downloading new model from {config.blip_model_url}...')
+                self.download_blip_model()
+#                model_path = config.blip_model_url
+                model_path = self.cache_model_path
+            print(f'ClipInterrogator: Loading BLIP model from {model_path}')
             blip_model = blip_decoder(
                 pretrained=model_path, 
                 image_size=config.blip_image_eval_size, 
                 vit='large'
             )
-            print(f'Loaded BLIP blip_decoder')
+            print(f'ClipInterrogator: Loaded BLIP blip_decoder')
             blip_model.eval()
             blip_model = blip_model.to(config.device)
             self.blip_model = blip_model
@@ -82,6 +87,20 @@ class ClipInterrogator():
             self.blip_model = config.blip_model
 
         self.load_clip_model()
+
+    def download_blip_model(self):
+        # download new model
+        url = self.config.blip_model_url
+        file_size = int(requests.head(url).headers["content-length"])
+        r = requests.get(url, allow_redirects=True, stream=True)
+        pbar = tqdm(total=file_size, unit="B", unit_scale=True)
+
+        with open(self.cache_model_path, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=1024):
+                f.write(chunk)
+                pbar.update(len(chunk))
+            pbar.close()
+        return
 
     def load_clip_model(self):
         start_time = time.time()
@@ -106,7 +125,7 @@ class ClipInterrogator():
             self.clip_preprocess = config.clip_preprocess
         self.tokenize = open_clip.get_tokenizer(clip_model_name)
 
-        sites = ['Artstation', 'behance', 'cg society', 'cgsociety', 'deviantart', 'dribble', 'flickr', 'instagram', 'pexels', 'pinterest', 'pixabay', 'pixiv', 'polycount', 'reddit', 'shutterstock', 'tumblr', 'unsplash', 'zbrush central']
+        sites = ['Artstation', 'behance', 'cg society', 'cgsociety', 'deviantart', 'dribble', 'flickr', 'instagram', 'pexels', 'pinterest', 'pixabay', 'pixiv', 'polycount', 'reddit', 'shutterstock', 'tumblr', 'unsplash', 'zbrush central', 'PornPics', 'sex.com']
         trending_list = [site for site in sites]
         trending_list.extend(["trending on "+site for site in sites])
         trending_list.extend(["featured on "+site for site in sites])
@@ -163,21 +182,21 @@ class ClipInterrogator():
     def interragate_score(self, image: Image, text: str) -> str:
         try:
             image_features = self.image_to_features(image)
-            sim = self.similarity(image_features, text)            
+            sim = self.similarity(image_features, text)
             return sim
 
         except Exception as e:
             print(f"Error: {e}")
             raise e
 
-    def interrogate_one(self, image: Image, path: str = None, list: list = None) -> str:
+    def interrogate_one(self, image: Image, path: str = None, options: list = None) -> str:
         try:
             image_features = self.image_to_features(image)
             if path:
                 seed = _load_list(os.path.dirname(path), os.path.basename(path))
                 seed_labels = LabelTable(seed, os.path.basename(path), self.clip_model, self.tokenize, self.config)
-            elif list:
-                seed_labels = LabelTable(list, "list", self.clip_model, self.tokenize, self.config)
+            elif options:
+                seed_labels = LabelTable(options, "list", self.clip_model, self.tokenize, self.config)
             else:
                 raise Exception("No seed or list provided.")
             top = seed_labels.rank(image_features, 1)[0]
@@ -315,7 +334,8 @@ class LabelTable():
                             self.labels = data['labels']
                             self.embeds = data['embeds']
                         else:
-                            print(f"Hash mismatch for cached table {desc}")
+                            if desc != "list":
+                                print(f"Hash mismatch for cached table {desc}")
                     except Exception as e:
                         print(f"Error loading cached table {desc}: {e}")
 
