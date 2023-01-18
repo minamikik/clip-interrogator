@@ -54,7 +54,7 @@ class ClipInterrogator():
             if not config.quiet:
                 print("Loading BLIP model...")
             blip_path = os.path.dirname(inspect.getfile(blip_decoder))
-            configs_path = os.path.join(os.path.dirname(blip_path), 'configs')
+            configs_path = os.path.join(os.path.dirname(blip_path), 'blip/configs')
             med_config = os.path.join(configs_path, 'med_config.json')
             cache_model_path = os.path.join(config.cache_path, 'model_large_caption.pth')
             if os.path.exists(cache_model_path):
