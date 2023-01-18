@@ -23,7 +23,7 @@ from timm.models.hub import download_cached_file
 blip_path = os.path.dirname(__file__)
 
 class BLIP_Base(nn.Module):
-    def __init__(self,                 
+    def __init__(self,
                  med_config = 'med_config.json',  
                  image_size = 224,
                  vit = 'base',

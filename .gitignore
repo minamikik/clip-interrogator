@@ -180,3 +180,4 @@ poetry.toml
 
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+src/clip_interrogator/version.py

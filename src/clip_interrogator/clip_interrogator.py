@@ -9,7 +9,6 @@ import torch
 import hashlib
 import requests
 
-
 from dataclasses import dataclass
 from PIL import Image
 from torchvision import transforms

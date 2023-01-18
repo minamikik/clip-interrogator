@@ -4,8 +4,11 @@ from PIL import Image
 from clip_interrogator import ClipInterrogator, Config
 
 args = argparse.ArgumentParser()
-args.add_argument("--source_dir", type=str, required=True)
-args = args.parse_args()
+
+def parse_args():
+    global args
+    args.add_argument("--source_dir", type = str, default = ".", required=True)
+    args = args.parse_args()
 
 models = [
     "ViT-L-14/openai",
@@ -38,6 +41,7 @@ def create_source_list(source_dir):
 
 
 def main():
+    parse_args()
     interrogator = Interrogator()
     source_list = create_source_list(args.source_dir)
 

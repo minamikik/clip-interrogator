@@ -1,0 +1,52 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools", "setuptools_scm"]
+
+[project]
+name = "clip-interrogator"
+authors = [
+  {name = "pharmapsychotic", email = "me@pharmapsychotic.com"},
+  {name = "minamikik", email = "mia@sync.dev"},
+]
+description = "Generate a prompt from an image"
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = "==3.10.*"
+dependencies = [
+    "torch",
+    "torchvision",
+    "numpy",
+    "Pillow",
+    "requests",
+    "tqdm",
+    "open_clip_torch"
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+[project.urls]
+Source = "https://github.com/minamikik/clip-interrogator"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.dynamic]
+version = {attr = "clip_interrogator.version.version"}
+
+[tool.setuptools_scm]
+write_to = "src/clip_interrogator/version.py"
+version_scheme = "python-simplified-semver"
+local_scheme = "no-local-version"
