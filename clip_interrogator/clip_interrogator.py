@@ -7,6 +7,7 @@ import os
 import pickle
 import time
 import torch
+import hashlib
 
 from dataclasses import dataclass
 from blip import blip_decoder, BLIP_Decoder
@@ -41,8 +42,6 @@ class Config:
     data_path: str = os.path.join(os.path.dirname(__file__), 'data')
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
     flavor_intermediate_count: int = 2048
-    is_artists: bool = True
-    alt_flavors_path: str = None
     quiet: bool = False # when quiet progress bars are not shown
 
 
@@ -57,15 +56,32 @@ class ClipInterrogator():
             blip_path = os.path.dirname(inspect.getfile(blip_decoder))
             configs_path = os.path.join(os.path.dirname(blip_path), 'configs')
             med_config = os.path.join(configs_path, 'med_config.json')
+            cache_model_path = os.path.join(config.cache_path, 'model_large_caption.pth')
+            if os.path.exists(cache_model_path):
+                model_path = cache_model_path
+                with open(cache_model_path, 'rb') as f:
+                    model_hash = hashlib.md5(f.read()).hexdigest()
+                    print(f'Cached BLIP model hash: {model_hash}')
+                    if not model_hash == 'b78e0b7488c83ba75d58f93f79e885b6':
+                        print(f'Cached BLIP model is out of date, downloading new model from {config.blip_model_url}...')
+                        model_path = config.blip_model_url
+                    else:
+                        print(f'Using cached BLIP model from {cache_model_path}')
+            else:
+                print(f'No cached BLIP model found, downloading new model from {config.blip_model_url}...')
+                model_path = config.blip_model_url
+            print(f'Loading BLIP model from {model_path}')
             blip_model = blip_decoder(
-                pretrained=config.blip_model_url, 
+                pretrained=model_path, 
                 image_size=config.blip_image_eval_size, 
                 vit='large', 
                 med_config=med_config
             )
+            print(f'Loaded BLIP blip_decoder')
             blip_model.eval()
             blip_model = blip_model.to(config.device)
             self.blip_model = blip_model
+            print(f'Initialized BLIP model')
         else:
             self.blip_model = config.blip_model
 
@@ -100,24 +116,11 @@ class ClipInterrogator():
         trending_list.extend(["featured on "+site for site in sites])
         trending_list.extend([site+" contest winner" for site in sites])
 
-        raw_artists = []
-        if config.is_artists:
-            raw_artists = _load_list(config.data_path, 'artists.txt')
+        raw_artists = _load_list(config.data_path, 'artists.txt')
         artists = [f"by {a}" for a in raw_artists]
         artists.extend([f"inspired by {a}" for a in raw_artists])
 
         flavors = _load_list(config.data_path, 'flavors.txt')
-        if config.alt_flavors_path is not None:
-            if os.path.exists(config.alt_flavors_path):
-                try:
-                    
-                    alt_flavors = _load_list(os.path.dirname(config.alt_flavors_path), os.path.basename(config.alt_flavors_path))
-                    flavors.extend(alt_flavors)
-                    print(f'Loaded {len(alt_flavors)} alternative flavors from {config.alt_flavors_path}')
-                except Exception as e:
-                    print(f"Failed to load alternative flavor list from {config.alt_flavors_path}: {e}")
-            else:
-                print(f"Alternative flavor list not found at {config.alt_flavors_path}")
 
         self.artists = LabelTable(artists, "artists", self.clip_model, self.tokenize, config)
         self.flavors = LabelTable(flavors, "flavors", self.clip_model, self.tokenize, config)
@@ -152,11 +155,51 @@ class ClipInterrogator():
         return caption[0]
 
     def image_to_features(self, image: Image) -> torch.Tensor:
-        images = self.clip_preprocess(image).unsqueeze(0).to(self.device)
-        with torch.no_grad(), torch.cuda.amp.autocast():
-            image_features = self.clip_model.encode_image(images)
-            image_features /= image_features.norm(dim=-1, keepdim=True)
-        return image_features
+        try:
+            images = self.clip_preprocess(image).unsqueeze(0).to(self.device)
+            with torch.no_grad(), torch.cuda.amp.autocast():
+                image_features = self.clip_model.encode_image(images)
+                image_features /= image_features.norm(dim=-1, keepdim=True)
+            return image_features
+        except Exception as e:
+            print(f"Error: {e}")
+            raise e
+    def interragate_score(self, image: Image, text: str) -> str:
+        try:
+            image_features = self.image_to_features(image)
+            sim = self.similarity(image_features, text)            
+            return sim
+
+        except Exception as e:
+            print(f"Error: {e}")
+            raise e
+
+    def interrogate_one(self, image: Image, path: str = None, list: list = None) -> str:
+        try:
+            image_features = self.image_to_features(image)
+            if path:
+                seed = _load_list(os.path.dirname(path), os.path.basename(path))
+                seed_labels = LabelTable(seed, os.path.basename(path), self.clip_model, self.tokenize, self.config)
+            elif list:
+                seed_labels = LabelTable(list, "list", self.clip_model, self.tokenize, self.config)
+            else:
+                raise Exception("No seed or list provided.")
+            top = seed_labels.rank(image_features, 1)[0]
+            return _truncate_to_fit(top, self.tokenize)
+        except Exception as e:
+            print(f"Error: {e}")
+            raise e
+
+    def interrogate_flavors(self, image: Image, path: str = None, max_flavors: int = 32) -> str:
+        try:
+            image_features = self.image_to_features(image)
+            flavors_reduced = _load_list(os.path.dirname(path), os.path.basename(path))
+            self.flavors_reduced = LabelTable(flavors_reduced, "flavors_reduced", self.clip_model, self.tokenize, self.config)
+            tops = self.flavors_reduced.rank(image_features, max_flavors)
+            return ", ".join(tops)
+        except Exception as e:
+            print(f"Error: {e}")
+            raise e
 
     def interrogate_classic(self, image: Image, max_flavors: int=3) -> str:
         caption = self.generate_caption(image)
@@ -181,6 +224,7 @@ class ClipInterrogator():
         merged = _merge_tables([self.artists, self.flavors, self.mediums, self.movements, self.trendings], self.config)
         tops = merged.rank(image_features, max_flavors)
         return _truncate_to_fit(caption + ", " + ", ".join(tops), self.tokenize)
+
 
     def interrogate(self, image: Image, max_flavors: int=32) -> str:
         caption = self.generate_caption(image)
@@ -271,8 +315,11 @@ class LabelTable():
                     try:
                         data = pickle.load(f)
                         if data.get('hash') == hash:
+                            print(f"Loaded cached table {desc}")
                             self.labels = data['labels']
                             self.embeds = data['embeds']
+                        else:
+                            print(f"Hash mismatch for cached table {desc}")
                     except Exception as e:
                         print(f"Error loading cached table {desc}: {e}")
 

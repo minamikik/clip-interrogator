@@ -1,0 +1,3 @@
+in focus at dof
+in sharp focus at shallow dof
+pan-focus in focus throughout
