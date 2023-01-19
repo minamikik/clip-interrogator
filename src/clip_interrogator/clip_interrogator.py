@@ -52,43 +52,44 @@ class ClipInterrogator():
         self.config = config
         self.device = config.device
 
-        if config.blip_model is None:
-            if not config.quiet:
-                print("ClipInterrogator: Loading BLIP model...")
-            self.cache_model_path = os.path.join(config.cache_path, 'model_large_caption.pth')
+        self.load_blip_model()
+        self.load_clip_model()
+
+
+    def load_blip_model(self):
+        print("ClipInterrogator: Loading BLIP model...")
+        if self.config.blip_model is None:
+            self.cache_model_path = os.path.join(self.config.cache_path, 'model_large_caption.pth')
             if os.path.exists(self.cache_model_path):
                 model_path = self.cache_model_path
                 with open(self.cache_model_path, 'rb') as f:
                     model_hash = hashlib.md5(f.read()).hexdigest()
-                    print(f'ClipInterrogator: Cached BLIP model hash: {model_hash}')
                     if not model_hash == 'b78e0b7488c83ba75d58f93f79e885b6':
-                        print(f'ClipInterrogator: Cached BLIP model is out of date, downloading new model from {config.blip_model_url}...')
                         self.download_blip_model()
                         model_path = self.cache_model_path
                     else:
                         print(f'ClipInterrogator: Using cached BLIP model from {self.cache_model_path}')
             else:
-                print(f'ClipInterrogator: No cached BLIP model found, downloading new model from {config.blip_model_url}...')
                 self.download_blip_model()
-#                model_path = config.blip_model_url
+#                model_path = self.config.blip_model_url
                 model_path = self.cache_model_path
-            print(f'ClipInterrogator: Loading BLIP model from {model_path}')
             blip_model = blip_decoder(
                 pretrained=model_path, 
-                image_size=config.blip_image_eval_size, 
+                image_size=self.config.blip_image_eval_size, 
                 vit='large'
             )
-            print(f'ClipInterrogator: Loaded BLIP blip_decoder')
             blip_model.eval()
-            blip_model = blip_model.to(config.device)
+            blip_model = blip_model.to(self.config.device)
             self.blip_model = blip_model
-            print(f'Initialized BLIP model')
         else:
-            self.blip_model = config.blip_model
+            self.blip_model = self.config.blip_model
 
-        self.load_clip_model()
+        print(f'ClipInterrogator: Initialized BLIP model')
+        return
+
 
     def download_blip_model(self):
+        print(f'ClipInterrogator: Downloading BLIP model from {self.config.blip_model_url} to {self.cache_model_path}...')
         # download new model
         url = self.config.blip_model_url
         file_size = int(requests.head(url).headers["content-length"])
@@ -100,52 +101,55 @@ class ClipInterrogator():
                 f.write(chunk)
                 pbar.update(len(chunk))
             pbar.close()
+
+        print(f'ClipInterrogator: Downloaded BLIP model to {self.cache_model_path}...')
         return
 
     def load_clip_model(self):
-        start_time = time.time()
-        config = self.config
+        print("ClipInterrogator: Loading CLIP model...")
+        if self.config.clip_model is None:
 
-        if config.clip_model is None:
-            if not config.quiet:
-                print("Loading CLIP model...")
-
-            clip_model_name, clip_model_pretrained_name = config.clip_model_name.split('/', 2)
+            clip_model_name, clip_model_pretrained_name = self.config.clip_model_name.split('/', 2)
             self.clip_model, _, self.clip_preprocess = open_clip.create_model_and_transforms(
                 clip_model_name, 
                 pretrained=clip_model_pretrained_name, 
-                precision='fp16' if config.device == 'cuda' else 'fp32',
-                device=config.device,
+                precision='fp16' if self.config.device == 'cuda' else 'fp32',
+                device=self.config.device,
                 jit=False,
-                cache_dir=config.clip_model_path
+                cache_dir=self.config.clip_model_path
             )
-            self.clip_model.to(config.device).eval()
+            self.clip_model.to(self.config.device).eval()
         else:
-            self.clip_model = config.clip_model
-            self.clip_preprocess = config.clip_preprocess
+            self.clip_model = self.config.clip_model
+            self.clip_preprocess = self.config.clip_preprocess
         self.tokenize = open_clip.get_tokenizer(clip_model_name)
 
+        print(f'ClipInterrogator: Initialized CLIP model')
+        return
+
+
+    def prepare_labels(self):
+        print('ClipInterrogator: Preparing labels...')
         sites = ['Artstation', 'behance', 'cg society', 'cgsociety', 'deviantart', 'dribble', 'flickr', 'instagram', 'pexels', 'pinterest', 'pixabay', 'pixiv', 'polycount', 'reddit', 'shutterstock', 'tumblr', 'unsplash', 'zbrush central', 'PornPics', 'sex.com']
         trending_list = [site for site in sites]
         trending_list.extend(["trending on "+site for site in sites])
         trending_list.extend(["featured on "+site for site in sites])
         trending_list.extend([site+" contest winner" for site in sites])
 
-        raw_artists = _load_list(config.data_path, 'artists.txt')
+        raw_artists = _load_list(self.config.data_path, 'artists.txt')
         artists = [f"by {a}" for a in raw_artists]
         artists.extend([f"inspired by {a}" for a in raw_artists])
 
-        flavors = _load_list(config.data_path, 'flavors.txt')
+        flavors = _load_list(self.config.data_path, 'flavors.txt')
 
-        self.artists = LabelTable(artists, "artists", self.clip_model, self.tokenize, config)
-        self.flavors = LabelTable(flavors, "flavors", self.clip_model, self.tokenize, config)
-        self.mediums = LabelTable(_load_list(config.data_path, 'mediums.txt'), "mediums", self.clip_model, self.tokenize, config)
-        self.movements = LabelTable(_load_list(config.data_path, 'movements.txt'), "movements", self.clip_model, self.tokenize, config)
-        self.trendings = LabelTable(trending_list, "trendings", self.clip_model, self.tokenize, config)
+        self.artists = LabelTable(artists, "artists", self.clip_model, self.tokenize, self.config)
+        self.flavors = LabelTable(flavors, "flavors", self.clip_model, self.tokenize, self.config)
+        self.mediums = LabelTable(_load_list(self.config.data_path, 'mediums.txt'), "mediums", self.clip_model, self.tokenize, self.config)
+        self.movements = LabelTable(_load_list(self.config.data_path, 'movements.txt'), "movements", self.clip_model, self.tokenize, self.config)
+        self.trendings = LabelTable(trending_list, "trendings", self.clip_model, self.tokenize, self.config)
 
-        end_time = time.time()
-        if not config.quiet:
-            print(f"Loaded CLIP model and data in {end_time-start_time:.2f} seconds.")
+        print('ClipInterrogator: Prepared labels')
+        return
 
     def generate_caption(self, pil_image: Image) -> str:
         if self.config.blip_offload:
