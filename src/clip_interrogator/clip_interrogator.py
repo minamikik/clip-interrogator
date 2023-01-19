@@ -183,7 +183,7 @@ class ClipInterrogator():
         except Exception as e:
             print(f"Error: {e}")
             raise e
-    def interragate_score(self, image: Image, text: str) -> str:
+    async def interragate_score(self, image: Image, text: str) -> str:
         try:
             image_features = self.image_to_features(image)
             sim = self.similarity(image_features, text)
