@@ -317,11 +317,10 @@ class LabelTable():
             cache_filepath = os.path.join(config.cache_path, f"{sanitized_name}_{desc}.pkl")
             if desc is not None and os.path.exists(cache_filepath):
                 with open(cache_filepath, 'rb') as f:
-                    try:
-                        data = pickle.load(f)
-                        if data.get('hash') == hash:
-                            self.labels = data['labels']
-                            self.embeds = data['embeds']
+                    data = pickle.load(f)
+                    if data.get('hash') == hash:
+                        self.labels = data['labels']
+                        self.embeds = data['embeds']
 
         if len(self.labels) != len(self.embeds):
             self.embeds = []
