@@ -8,7 +8,6 @@ import time
 import torch
 import hashlib
 import requests
-from logging import getLogger
 from dataclasses import dataclass
 from PIL import Image
 from torchvision import transforms
@@ -16,13 +15,9 @@ from torchvision.transforms.functional import InterpolationMode
 from tqdm import tqdm
 from typing import List
 from .blip import blip_decoder, BLIP_Decoder
-logger = getLogger(__name__)
-
 
 @dataclass 
 class Config:
-    logger.level = 20
-    logger.debug('ClipInterrogator: Initializing Config...')
     # models can optionally be passed in directly
     blip_model: BLIP_Decoder = None
     clip_model = None
@@ -50,7 +45,6 @@ class Config:
 
 class ClipInterrogator():
     def __init__(self, config: Config):
-        logger.debug('ClipInterrogator: Initializing ClipInterrogator...')
         self.config = config
         self.device = config.device
 
@@ -59,7 +53,6 @@ class ClipInterrogator():
 
 
     def load_blip_model(self):
-        logger.debug("ClipInterrogator: Loading BLIP model...")
         if self.config.blip_model is None:
             self.cache_model_path = os.path.join(self.config.cache_path, 'model_large_caption.pth')
             if os.path.exists(self.cache_model_path):
@@ -69,8 +62,6 @@ class ClipInterrogator():
                     if not model_hash == 'b78e0b7488c83ba75d58f93f79e885b6':
                         self.download_blip_model()
                         model_path = self.cache_model_path
-                    else:
-                        logger.debug(f'ClipInterrogator: Using cached BLIP model from {self.cache_model_path}')
             else:
                 self.download_blip_model()
 #                model_path = self.config.blip_model_url
@@ -86,12 +77,10 @@ class ClipInterrogator():
         else:
             self.blip_model = self.config.blip_model
 
-        logger.debug(f'ClipInterrogator: Initialized BLIP model')
         return
 
 
     def download_blip_model(self):
-        logger.debug(f'ClipInterrogator: Downloading BLIP model from {self.config.blip_model_url} to {self.cache_model_path}...')
         # download new model
         url = self.config.blip_model_url
         file_size = int(requests.head(url).headers["content-length"])
@@ -104,11 +93,9 @@ class ClipInterrogator():
                 pbar.update(len(chunk))
             pbar.close()
 
-        logger.debug(f'ClipInterrogator: Downloaded BLIP model to {self.cache_model_path}...')
         return
 
     def load_clip_model(self):
-        logger.debug("ClipInterrogator: Loading CLIP model...")
         if self.config.clip_model is None:
 
             clip_model_name, clip_model_pretrained_name = self.config.clip_model_name.split('/', 2)
@@ -126,12 +113,10 @@ class ClipInterrogator():
             self.clip_preprocess = self.config.clip_preprocess
         self.tokenize = open_clip.get_tokenizer(clip_model_name)
 
-        logger.debug(f'ClipInterrogator: Initialized CLIP model')
         return
 
 
     def prepare_labels(self):
-        logger.debug('ClipInterrogator: Preparing labels...')
         sites = ['Artstation', 'behance', 'cg society', 'cgsociety', 'deviantart', 'dribble', 'flickr', 'instagram', 'pexels', 'pinterest', 'pixabay', 'pixiv', 'polycount', 'reddit', 'shutterstock', 'tumblr', 'unsplash', 'zbrush central', 'PornPics', 'sex.com']
         trending_list = [site for site in sites]
         trending_list.extend(["trending on "+site for site in sites])
@@ -150,7 +135,6 @@ class ClipInterrogator():
         self.movements = LabelTable(_load_list(self.config.data_path, 'movements.txt'), "movements", self.clip_model, self.tokenize, self.config)
         self.trendings = LabelTable(trending_list, "trendings", self.clip_model, self.tokenize, self.config)
 
-        logger.debug('ClipInterrogator: Prepared labels')
         return
 
     def generate_caption(self, pil_image: Image) -> str:
@@ -183,7 +167,6 @@ class ClipInterrogator():
                 image_features /= image_features.norm(dim=-1, keepdim=True)
             return image_features
         except Exception as e:
-            logger.debug(f"Error: {e}")
             raise e
     def interragate_score(self, image: Image, text: str) -> str:
         try:
@@ -192,7 +175,6 @@ class ClipInterrogator():
             return sim
 
         except Exception as e:
-            logger.debug(f"Error: {e}")
             raise e
 
     def interrogate_one(self, image: Image, path: str = None, options: list = None) -> str:
@@ -208,7 +190,6 @@ class ClipInterrogator():
             top = seed_labels.rank(image_features, 1)[0]
             return _truncate_to_fit(top, self.tokenize)
         except Exception as e:
-            logger.debug(f"Error: {e}")
             raise e
 
     def interrogate_flavors(self, image: Image, path: str = None, max_flavors: int = 32) -> str:
@@ -223,7 +204,6 @@ class ClipInterrogator():
             tops = self.flavors_reduced.rank(image_features, max_flavors)
             return ", ".join(tops)
         except Exception as e:
-            logger.debug(f"Error: {e}")
             raise e
 
     def interrogate_classic(self, image: Image, max_flavors: int=3) -> str:
@@ -340,14 +320,8 @@ class LabelTable():
                     try:
                         data = pickle.load(f)
                         if data.get('hash') == hash:
-                            logger.debug(f"Loaded cached table {desc}")
                             self.labels = data['labels']
                             self.embeds = data['embeds']
-                        else:
-                            if desc != "list":
-                                logger.debug(f"Hash mismatch for cached table {desc}")
-                    except Exception as e:
-                        logger.debug(f"Error loading cached table {desc}: {e}")
 
         if len(self.labels) != len(self.embeds):
             self.embeds = []
