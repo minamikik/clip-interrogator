@@ -16,12 +16,12 @@ from torchvision.transforms.functional import InterpolationMode
 from tqdm import tqdm
 from typing import List
 from .blip import blip_decoder, BLIP_Decoder
-
 logger = getLogger(__name__)
 
 
 @dataclass 
 class Config:
+    logger.level = 20
     logger.debug('ClipInterrogator: Initializing Config...')
     # models can optionally be passed in directly
     blip_model: BLIP_Decoder = None
