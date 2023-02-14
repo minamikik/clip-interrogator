@@ -168,13 +168,38 @@ class ClipInterrogator():
             return image_features
         except Exception as e:
             raise e
+
+    def interragate_score_list(self, image: Image, options: list = None) -> str:
+        try:
+            image_features = self.image_to_features(image)
+            if options:
+                result = {}
+                with torch.no_grad(), torch.cuda.amp.autocast():
+                    for option in options:
+                        text_tokens = self.tokenize([option]).to(self.device)
+                        text_features = self.clip_model.encode_text(text_tokens)
+                        text_features /= text_features.norm(dim=-1, keepdim=True)
+                        similarity = text_features @ image_features.T
+                        result[option] = similarity[0][0].item()
+            else:
+                raise Exception("No options provided")
+            torch.cuda.empty_cache()
+            return result
+        except Exception as e:
+            torch.cuda.empty_cache()
+            raise e
+
+
+
     def interragate_score(self, image: Image, text: str) -> str:
         try:
             image_features = self.image_to_features(image)
             sim = self.similarity(image_features, text)
+            torch.cuda.empty_cache()
             return sim
 
         except Exception as e:
+            torch.cuda.empty_cache()
             raise e
 
     def interrogate_one(self, image: Image, path: str = None, options: list = None) -> str:
@@ -188,22 +213,28 @@ class ClipInterrogator():
             else:
                 raise Exception("No seed or list provided.")
             top = seed_labels.rank(image_features, 1)[0]
+            torch.cuda.empty_cache()
             return _truncate_to_fit(top, self.tokenize)
         except Exception as e:
+            torch.cuda.empty_cache()
             raise e
 
-    def interrogate_flavors(self, image: Image, path: str = None, max_flavors: int = 32) -> str:
+    def interrogate_flavors(self, image: Image, path: str = None, options: list = None, max_flavors: int = 32) -> str:
         try:
             image_features = self.image_to_features(image)
-            if path is None:
-                seed_labels = _load_list(os.path.join(self.config.data_path, 'flavors_reduced.txt'))
-                self.flavors_reduced = LabelTable(seed_labels, "flavors_reduced", self.clip_model, self.tokenize, self.config)
-            else:
+            if path:
                 seed_labels = _load_list(os.path.dirname(path), os.path.basename(path))
                 self.flavors_reduced = LabelTable(seed_labels, os.path.basename(path), self.clip_model, self.tokenize, self.config)
+            elif options:
+                self.flavors_reduced = LabelTable(options, "list", self.clip_model, self.tokenize, self.config)
+            else:
+                seed_labels = _load_list(os.path.join(self.config.data_path, 'flavors_reduced.txt'))
+                self.flavors_reduced = LabelTable(seed_labels, "flavors_reduced", self.clip_model, self.tokenize, self.config)
             tops = self.flavors_reduced.rank(image_features, max_flavors)
+            torch.cuda.empty_cache()
             return ", ".join(tops)
         except Exception as e:
+            torch.cuda.empty_cache()
             raise e
 
     def interrogate_classic(self, image: Image, max_flavors: int=3) -> str:
@@ -228,6 +259,7 @@ class ClipInterrogator():
         image_features = self.image_to_features(image)
         merged = _merge_tables([self.artists, self.flavors, self.mediums, self.movements, self.trendings], self.config)
         tops = merged.rank(image_features, max_flavors)
+        torch.cuda.empty_cache()
         return _truncate_to_fit(caption + ", " + ", ".join(tops), self.tokenize)
 
 
@@ -280,6 +312,7 @@ class ClipInterrogator():
                 break
             extended_flavors.remove(flave)
 
+        torch.cuda.empty_cache()
         return best_prompt
 
     def rank_top(self, image_features: torch.Tensor, text_array: List[str]) -> str:
